@@ -3,6 +3,7 @@ app.py  –  Adaptive Demand Forecasting System
 Run with:  streamlit run app.py
 """
 import streamlit as st
+from supabase import create_client
 
 st.set_page_config(
     page_title="Adaptive Demand Forecasting",
@@ -10,7 +11,90 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+# Connect to Supabase
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
 
+supabase = create_client(url, key)
+# -------------------------------
+# LOGIN SYSTEM
+# -------------------------------
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "username" not in st.session_state:
+    st.session_state.username = None
+
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+
+def login_user(username, password):
+    response = (
+        supabase
+        .table("users")
+        .select("username, password, role")
+        .eq("username", username)
+        .execute()
+    )
+
+    if not response.data:
+        return False
+
+    user = response.data[0]
+
+    if user["password"] == password:
+        st.session_state.logged_in = True
+        st.session_state.username = user["username"]
+        st.session_state.role = user["role"]
+
+        # Record successful login
+        supabase.table("login_activity").insert({
+            "username": user["username"]
+        }).execute()
+
+        return True
+
+    return False
+
+
+# Show login page if user isn't logged in
+if not st.session_state.logged_in:
+
+    st.title("Adaptive Demand Forecasting")
+    st.subheader("Login")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+
+        if not username or not password:
+            st.error("Please enter your username and password.")
+
+        elif login_user(username, password):
+            st.success("Login successful!")
+            st.rerun()
+
+        else:
+            st.error("Invalid username or password.")
+
+    st.stop()
+
+
+# -------------------------------
+# LOGGED-IN USER
+# -------------------------------
+
+with st.sidebar:
+    st.success(f"Logged in as: {st.session_state.username}")
+
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.username = None
+        st.session_state.role = None
+        st.rerun()
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
